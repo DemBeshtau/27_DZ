@@ -62,3 +62,50 @@ vagrant up
    +-------------+
    1 row in set (0.00 sec)
    ```
+   - Создание тестовой БД и загрузка в неё имеющегося дампа:
+   ```shell
+   mysql> CREATE DATABASE bet;
+   Query OK, 1 row affected (0.00 sec)
+
+   root@master:~# mysql -uroot -p -D bet < /vagrant/provisioning/files/bet.dmp
+
+   mysql> use bet;
+   Reading table information for completion of table and column names
+   You can turn off this feature to get a quicker startup with -A
+
+   Database changed
+   mysql> show tables;
+   +------------------+
+   | Tables_in_bet    |
+   +------------------+
+   | bookmaker        |   
+   | competition      |
+   | events_on_demand |
+   | market           |
+   | odds             |
+   | outcome          |
+   | v_same_event     |
+   +------------------+
+   7 rows in set (0.00 sec)
+   ```
+   - Создание пользователя для репликации и наделение его соответствующими правами:
+   ```shell
+   mysql> CREATE USER 'repl'@'%' IDENTIFIED BY 'OtusRepl2024!';
+   mysql> SELECT user,host FROM mysql.user where user='repl';
+   +------+------+
+   | user | host |
+   +------+------+
+   | repl | %    |
+   +------+------+
+   1 row in set (0.00 sec)
+   mysql> GRANT REPLICATION SLAVE ON *.* TO 'repl'@'%' IDENTIFIED BY 'OtusRepl2024!';
+   ```
+   - Подготовка дампа базы с игнорированием таблиц по заданию для переноса на слэйв сервер:
+   ```shell
+   root@master:~# mysqldump --all-databases --triggers --routines --master-data
+   --ignore-table=bet.events_on_demand --ignore-table=bet.v_same_event -uroot -p > master.sql
+   ```
+   - Перенос дампа мастер сервера на слэйв сервер и проверка корретности переноса БД:
+   ```shell
+   
+   ```
