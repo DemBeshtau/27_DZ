@@ -107,5 +107,30 @@ vagrant up
    ```
    - Перенос дампа мастер сервера на слэйв сервер и проверка корретности переноса БД:
    ```shell
-   
+   mysql> SOURCE /tmp/master.sql
+   mysql> SHOW DATABASES LIKE 'bet';
+   +----------------+
+   | Database (bet) |
+   +----------------+
+   | bet            |
+   +----------------+
+   1 row in set (0.07 sec)
+
+   mysql> use bet;
+   Reading table information for completion of table and column names
+   You can turn off this feature to get a quicker startup with -A
+
+   Database changed
+   mysql> SHOW TABLES;
+   +---------------+
+   | Tables_in_bet |
+   +---------------+
+   | bookmaker     |
+   | competition   |
+   | market        |
+   | odds          |
+   | outcome       |
+   +---------------+
+   5 rows in set (0.01 sec)
    ```
+   &ensp;&ensp;Вывод команды, свидетельствует об отсутствии таблиц v_same_event и events_on_demand в БД на слэйв сервере.
