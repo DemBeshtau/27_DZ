@@ -181,7 +181,7 @@ vagrant up
    +----+----------------+
    5 rows in set (0.00 sec)
    ```  
-   &ensp;&ensp;Слэйв сервер
+   &ensp;&ensp;&ensp;&ensp;Слэйв сервер
    ```shell
    mysql> USE bet;
    Database changed
@@ -197,3 +197,4 @@ vagrant up
    +----+----------------+
    5 rows in set (0.00 sec)   
    ```
+&ensp;&ensp;Для автоматического конфигурирования инфраструктуры с помощью Ansible, подготовлен плейбук playbook.yml.
