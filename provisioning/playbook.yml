@@ -1,0 +1,209 @@
+---
+- name: Base setup
+  hosts: all
+  become: true
+  tasks:
+    
+    - name: Installing necessary soft on servers
+      apt:
+        name: 
+          - mysql-server
+          - python3-pip
+        state: present
+        update_cache: yes
+
+    - name: Installing additional python packet - PyMySQL
+      pip:
+        name: PyMySQL
+
+    - name: Starting MySQL service
+      service:
+        name: mysql
+        state: started
+        enabled: yes     
+
+- name: Configuring Master server
+  hosts: master
+  become: true
+  vars_files:
+    - defaults/main.yml 
+  tasks:
+
+    - name: Generating .my.cnf file on Master
+      shell: "echo \"[mysql]\nuser='root'\npassword='{{ mysql_root_pass }}'\n\" > /root/.my.cnf"
+      args:
+        creates: /root/.my.cnf
+
+    - name: Setting up root password on MySQL service
+      mysql_user:
+        name: root
+        host: localhost
+        password: "{{ mysql_root_pass }}"
+        login_user: root
+        login_password: "{{ mysql_root_pass }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        state: present
+        update_password: on_create
+    
+    - name: Clear old MySQL configuration file
+      file:
+        path: /etc/mysql/mysql.conf.d/mysqld.cnf
+        state: absent
+
+    - name: Copying configuration file to server
+      copy:
+        src: files/conf.d/mysqld_master.cnf
+        dest: /etc/mysql/mysql.conf.d/mysqld.cnf
+        owner: root
+        group: root
+        mode: 0644
+      
+
+    - name: Restarting MySQL service
+      service: 
+        name: mysql
+        state: restarted 
+
+    - name: Creating database -bet-
+      mysql_db:
+        login_user: root
+        login_password: "{{ mysql_root_pass }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        name: bet
+        state: present
+
+    - name: Creating replication user with necessary grants
+      mysql_user:
+        login_user: root
+        login_password: "{{ mysql_root_pass }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        name: repl
+        password: "{{ mysql_user_pass }}"
+        host: '%'
+        priv: '*.*:REPLICATION SLAVE' 
+
+    - name: Copying -bet- dump on server
+      copy:
+        src: files/bet.dmp
+        dest: /tmp/bet.dmp
+
+    - name: Loading dump to -bet- database 
+      mysql_db:
+        login_user: root
+        login_password: "{{ mysql_root_pass }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        name: bet
+        state: import
+        target: /tmp/bet.dmp
+
+    - name: Creating new dump of -bet- database with necessary tables
+      shell: mysqldump --all-databases --add-drop-table --create-options --disable-keys \ 
+                       --extended-insert --single-transaction --quick --events --routines \
+                       --set-gtid-purged=OFF --triggers --source-data=0 --skip-lock-tables \
+                       --flush-privileges --ignore-table=bet.events_on_demand --ignore-table=bet.v_same_event \
+                       -u root -p{{ mysql_root_pass }} > /home/vagrant/master.sql
+      args:
+        creates: /home/vagrant/master.sql
+
+    - name: Copying master.sql dump to host machine
+      fetch:
+        src: /home/vagrant/master.sql
+        dest: files/master.sql
+        flat: yes
+
+    - name: Deleting DB dump
+      file:
+        path: /home/vagrant/master.sql
+        state: absent
+
+- name: Configuring Slave server
+  hosts: slave
+  become: true
+  vars_files:
+    - defaults/main.yml 
+  tasks:
+
+    - name: Generating .my.cnf file on Slave
+      shell: "echo \"[mysql]\nuser='root'\npassword='{{ mysql_root_pass }}'\n\" > /root/.my.cnf"
+      args:
+        creates: /root/.my.cnf 
+
+    - name: Setting up root password on MySQL service
+      mysql_user:
+        name: root
+        host: localhost
+        password: "{{ mysql_root_pass }}"
+        login_user: root
+        login_password: "{{ mysql_root_pass }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        state: present
+        update_password: on_create
+
+    - name: Clear old MySQL configuration file
+      file:
+        path: /etc/mysql/mysql.conf.d/mysqld.cnf
+        state: absent
+
+    - name: Copying configuration files to servers
+      copy:
+        src: files/conf.d/mysqld_slave.cnf
+        dest: /etc/mysql/mysql.conf.d/mysqld.cnf
+        owner: root
+        group: root
+        mode: 0644
+    
+    - name: Restarting MySQL service
+      service: 
+        name: mysql
+        state: restarted 
+    
+    - name: Stoping replication
+      mysql_replication: 
+        mode: stopreplica
+        login_user: root
+        login_password: "{{ mysql_root_pass }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+    - name: Configuring replication
+      mysql_replication:
+        mode: changeprimary
+        login_user: root
+        login_password: "{{ mysql_root_pass }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        master_host: "{{ master_host }}"
+        master_port: 3306
+        master_auto_position: yes
+        master_user: "repl"
+        master_password: "{{ mysql_user_pass }}"
+
+    - name: Restarting MySQL service
+      service: 
+        name: mysql
+        state: restarted 
+
+    - name: Copying -master- dump on server
+      copy:
+        src: files/master.sql
+        dest: /tmp/master.sql
+        
+    - name: Loading dump to -bet- database
+      mysql_db:
+        login_user: root
+        login_password: "{{ mysql_root_pass }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        name: all
+        state: import
+        target: /tmp/master.sql 
+
+    - name: Deleting DB dump
+      file:
+        path: /tmp/master.sql
+        state: absent
+
+    - name: Starting replication
+      mysql_replication:
+        mode: startreplica
+        login_user: root
+        login_password: "{{ mysql_root_pass }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+...

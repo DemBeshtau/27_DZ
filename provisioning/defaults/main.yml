@@ -1,0 +1,5 @@
+mysql_root_pass: Otus2024!
+mysql_user_pass: OtusRepl2024!
+master_host: 192.168.56.150
+path_to_dump: files/bet.dmp
+path_to_master_dump: files/master.sql
