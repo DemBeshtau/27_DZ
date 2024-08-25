@@ -181,7 +181,7 @@ vagrant up
    +----+----------------+
    5 rows in set (0.00 sec)
    ```  
-      Слэйв сервер
+   &ensp;&ensp;Слэйв сервер
    ```shell
    mysql> USE bet;
    Database changed
